@@ -115,3 +115,9 @@ time_to_mine(Block, Tool, Hits) :-
 
 blocks_mineable_with(Tool, Blocks) :-
     findall(Block, can_mine(Block, Tool), Blocks).
+
+% -----------------------------
+% Правило для поиска всех tool'ов, которыми можно добыть block
+% -----------------------------
+tools_to_mine(Block, Tools) :-
+    findall(Tool, can_mine(Block, Tool), Tools).
