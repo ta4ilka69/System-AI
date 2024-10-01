@@ -23,7 +23,6 @@ item(stick).
 item(wood_boards).
 item(iron_ingot).
 item(gold_ingot).
-item(obsidian).
 item(ancient_blocks).
 item(netherite_ingot).
 
