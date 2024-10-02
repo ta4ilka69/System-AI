@@ -88,6 +88,8 @@ Block = diamond,
 Endurance = 50 ;
 Block = obsidian,
 Endurance = 60 ;
+Block = ancient_blocks,
+Endurance = 60.
 ```
 
 

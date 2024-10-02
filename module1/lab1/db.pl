@@ -9,7 +9,7 @@ block(iron_ore).
 block(diamond).
 block(gold_ore).
 block(obsidian).
-block(ancient_blocks).
+block(ancient_block).
 % Факты об tool'ах
 tool(hand).
 tool(wooden_kirk).
@@ -23,9 +23,8 @@ item(stick).
 item(wood_boards).
 item(iron_ingot).
 item(gold_ingot).
-item(ancient_blocks).
 item(netherite_ingot).
-
+item(netherite_scrap).
 % -----------------------------
 % Факты с двумя аргументами
 % -----------------------------
@@ -37,6 +36,7 @@ endurance(iron_ore, 40).
 endurance(diamond, 50).
 endurance(gold_ore, 40).
 endurance(obsidian, 60).
+endurance(ancient_block, 60).
 
 % Количество damage'а, которое наносит tool block'у.
 damage(hand, 1).
@@ -53,7 +53,7 @@ mining(iron_ore, 8).
 mining(diamond, 10).
 mining(gold_ore, 9).
 mining(obsidian, 12).
-mining(ancient_blocks, 12).
+mining(ancient_block, 12).
 
 % Факты craftingа tool'ов и item'ов
 crafting(wooden_kirk, [stick, wood_boards]).
@@ -65,7 +65,7 @@ crafting(netherite_kirk, [diamond_kirk, netherite_ingot]).
 crafting(iron_ingot, [iron_ore]).
 crafting(gold_ingot, [gold_ore]).
 crafting(netherite_ingot, [netherite_scrap, gold_ingot]).
-crafting(netherite_scrap, [ancient_blocks]).
+crafting(netherite_scrap, [ancient_block]).
 crafting(wood_boards, [wood]).
 crafting(stick, [wood_boards]).
 
