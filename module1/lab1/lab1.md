@@ -90,4 +90,16 @@ Block = obsidian,
 Endurance = 60 ;
 ```
 
+## Часть 2. Реализация на Protege
 
+[Реализация на Protege](./lab1.owx)
+
+Запросы к онтологии:
+
+```sparql
+Block
+```
+
+```sparql
+Block and mining some xsd:integer[<= 8]
+```
