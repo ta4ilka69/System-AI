@@ -1,214 +1,188 @@
 import numpy as np
-import csv
-import random
-import matplotlib.pyplot as plt
+import pandas as pd
 from collections import Counter
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 
-def load_data(filepath):
-    data = []
-    labels = []
-    with open(filepath, "r") as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)  # Skip header
-        for row in reader:
-            labels.append(1 if row[0] == "p" else 0)  # Poisonous = 1, Edible = 0
-            data.append(row[1:])
-    return np.array(data), np.array(labels)
+class DecisionTree:
+    class Node:
+        def __init__(self, attribute=None, outcome=None, branches=None):
+            self.attribute = attribute
 
+            self.outcome = outcome
+            self.branches = branches or {}
 
-def encode_features(data):
-    encoded_data = []
-    for col in data.T:
-        unique_vals = {val: idx for idx, val in enumerate(set(col))}
-        encoded_data.append([unique_vals[val] for val in col])
-    return np.array(encoded_data).T
+    def __init__(self, max_depth=None, min_samples=2):
+        self.max_depth = max_depth
+        self.min_samples = min_samples
+        self.root = None
+        self.feature_subset = None
 
+    @staticmethod
+    def _calculate_entropy(labels):
+        label_counts = Counter(labels)
+        probabilities = [count / len(labels) for count in label_counts.values()]
+        return -sum(p * np.log2(p) for p in probabilities if p > 0)
 
-data, labels = load_data("mushroom.csv")
-data = encode_features(data)
+    def _info_gain(self, data, labels, attribute):
+        initial_entropy = self._calculate_entropy(labels)
+        values = data[attribute].value_counts()
+        weighted_entropy = 0
 
+        for val in values.index:
+            subset = labels[data[attribute] == val]
+            weight = len(subset) / len(labels)
+            weighted_entropy += weight * self._calculate_entropy(subset)
 
-def select_features(data):
-    n_features = data.shape[1]
-    num_features_to_select = int(np.sqrt(n_features))
-    selected_indices = random.sample(range(n_features), num_features_to_select)
-    return data[:, selected_indices], selected_indices
+        return initial_entropy - weighted_entropy
 
+    @staticmethod
+    def _fill_missing_values(data):
+        filled_data = data.copy()
+        for col in filled_data.columns:
+            filled_data[col] = filled_data[col].fillna(filled_data[col].mode()[0])
+        return filled_data
 
-data, selected_features = select_features(data)
+    @staticmethod
+    def _random_features(features):
+        subset_size = int(np.sqrt(len(features)))
+        return np.random.choice(features, size=subset_size, replace=False)
 
+    def _build(self, data, labels, depth=0):
+        if (
+            (self.max_depth is not None and depth >= self.max_depth)
+            or len(labels) < self.min_samples
+            or len(set(labels)) == 1
+        ):
+            return self.Node(outcome=Counter(labels).most_common(1)[0][0])
 
-def gini_impurity(labels):
-    counts = Counter(labels)
-    impurity = 1.0
-    for lbl in counts:
-        prob_of_lbl = counts[lbl] / len(labels)
-        impurity -= prob_of_lbl**2
-    return impurity
+        best_attr, best_gain = None, -1
+        for attr in data.columns:
+            gain = self._info_gain(data, labels, attr)
+            if gain > best_gain:
+                best_attr, best_gain = attr, gain
 
+        if best_gain <= 0:
+            return self.Node(outcome=Counter(labels).most_common(1)[0][0])
 
-def split_data(data, labels, feature, threshold):
-    left_mask = data[:, feature] == threshold
-    right_mask = ~left_mask
-    return (data[left_mask], labels[left_mask]), (data[right_mask], labels[right_mask])
-
-
-def find_best_split(data, labels):
-    best_gini = 1
-    best_split = None
-    for feature in range(data.shape[1]):
-        for threshold in set(data[:, feature]):
-            (left_data, left_labels), (right_data, right_labels) = split_data(
-                data, labels, feature, threshold
-            )
-            gini = (len(left_labels) / len(labels)) * gini_impurity(left_labels) + (
-                len(right_labels) / len(labels)
-            ) * gini_impurity(right_labels)
-            if gini < best_gini:
-                best_gini = gini
-                best_split = (feature, threshold)
-    return best_split
-
-
-class TreeNode:
-    def __init__(self, gini, num_samples, predicted_class):
-        self.gini = gini
-        self.num_samples = num_samples
-        self.predicted_class = predicted_class
-        self.feature = None
-        self.threshold = None
-        self.left = None
-        self.right = None
-
-
-def build_tree(data, labels, depth=0, max_depth=5):
-    num_samples_per_class = Counter(labels)
-    predicted_class = max(num_samples_per_class, key=num_samples_per_class.get)
-    node = TreeNode(
-        gini=gini_impurity(labels),
-        num_samples=len(labels),
-        predicted_class=predicted_class,
-    )
-
-    if depth >= max_depth or node.gini == 0:
+        node = self.Node(attribute=best_attr)
+        for value in data[best_attr].unique():
+            subset = data[best_attr] == value
+            if subset.any():
+                branch_data = data[subset].drop(columns=[best_attr])
+                branch_labels = labels[subset]
+                node.branches[value] = self._build(
+                    branch_data, branch_labels, depth + 1
+                )
         return node
 
-    feature, threshold = find_best_split(data, labels)
-    if feature is None:
-        return node
+    def train(self, features, labels):
+        clean_data = self._fill_missing_values(features)
+        self.feature_subset = self._random_features(clean_data.columns)
+        reduced_data = clean_data[self.feature_subset]
+        self.root = self._build(reduced_data, labels)
 
-    node.feature = feature
-    node.threshold = threshold
-    (left_data, left_labels), (right_data, right_labels) = split_data(
-        data, labels, feature, threshold
-    )
-    node.left = build_tree(left_data, left_labels, depth + 1, max_depth)
-    node.right = build_tree(right_data, right_labels, depth + 1, max_depth)
-    return node
+    def _predict_instance(self, instance, node):
+        if node.outcome is not None:
+            return node.outcome
+        attr_value = instance[node.attribute]
+        if attr_value in node.branches:
+            return self._predict_instance(instance, node.branches[attr_value])
+        outcomes = [
+            branch.outcome
+            for branch in node.branches.values()
+            if branch.outcome is not None
+        ]
+        return Counter(outcomes).most_common(1)[0][0]
 
+    def predict(self, features):
+        clean_data = self._fill_missing_values(features)
+        subset = clean_data[self.feature_subset]
+        return np.array(
+            [self._predict_instance(row, self.root) for _, row in subset.iterrows()]
+        )
 
-def predict(sample, tree):
-    if tree.left is None and tree.right is None:  # Leaf node
-        return tree.predicted_class
-    if sample[tree.feature] == tree.threshold:
-        return predict(sample, tree.left)
-    else:
-        return predict(sample, tree.right)
+    def evaluate(self, features, labels):
+        predictions = self.predict(features)
 
+        tp = sum((labels == "p") & (predictions == "p"))
+        tn = sum((labels == "e") & (predictions == "e"))
+        fp = sum((labels == "e") & (predictions == "p"))
+        fn = sum((labels == "p") & (predictions == "e"))
 
-def predict_all(data, tree):
-    return np.array([predict(sample, tree) for sample in data])
+        accuracy = (tp + tn) / len(labels)
+        precision_score = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall_score = tp / (tp + fn) if (tp + fn) > 0 else 0
 
+        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Precision: {precision_score:.4f}")
+        print(f"Recall: {recall_score:.4f}")
 
-def calculate_metrics(y_true, y_pred):
-    tp = np.sum((y_true == 1) & (y_pred == 1))
-    tn = np.sum((y_true == 0) & (y_pred == 0))
-    fp = np.sum((y_true == 0) & (y_pred == 1))
-    fn = np.sum((y_true == 1) & (y_pred == 0))
+        self._plot_auc_curves(labels, predictions)
 
-    accuracy = (tp + tn) / len(y_true)
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    @staticmethod
+    def _plot_auc_curves(labels, predictions):
+        # Convert 'p' and 'e' to binary values for computation
+        y_true = np.array([1 if label == "p" else 0 for label in labels])
+        y_pred = np.array([1 if pred == "p" else 0 for pred in predictions])
 
-    return accuracy, precision, recall
+        # AUC-ROC Calculation
+        thresholds = np.linspace(0, 1, 101)
+        tpr, fpr = [], []
 
+        for thresh in thresholds:
+            pred_bin = (y_pred >= thresh).astype(int)
+            tp = sum((y_true == 1) & (pred_bin == 1))
+            tn = sum((y_true == 0) & (pred_bin == 0))
+            fp = sum((y_true == 0) & (pred_bin == 1))
+            fn = sum((y_true == 1) & (pred_bin == 0))
+            tpr.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
+            fpr.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
 
-tree = build_tree(data, labels, max_depth=5)
-predictions = predict_all(data, tree)
-accuracy, precision, recall = calculate_metrics(labels, predictions)
+        plt.figure(figsize=(8, 6))
+        plt.plot([0, 1], [0, 1], 'k--', label='Random Classifier', color='gray', linestyle='--')
+        plt.plot(fpr, tpr, color='blue', label='ROC Curve')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('AUC-ROC Curve')
+        plt.legend(loc="lower right")
+        plt.grid(True)
+        plt.show()
 
-print(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+        # AUC-PR Calculation
+        precision, recall = [], []
 
+        for thresh in thresholds:
+            pred_bin = (y_pred >= thresh).astype(int)
+            tp = sum((y_true == 1) & (pred_bin == 1))
+            fp = sum((y_true == 0) & (pred_bin == 1))
+            fn = sum((y_true == 1) & (pred_bin == 0))
+            precision.append(tp / (tp + fp) if (tp + fp) > 0 else 0)
+            recall.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
 
-def calculate_roc_curve(y_true, y_scores):
-    thresholds = np.linspace(0, 1, num=100)
-    tpr_list = []
-    fpr_list = []
-
-    for threshold in thresholds:
-        y_pred = (y_scores >= threshold).astype(int)
-
-        tp = np.sum((y_true == 1) & (y_pred == 1))
-        fp = np.sum((y_true == 0) & (y_pred == 1))
-        fn = np.sum((y_true == 1) & (y_pred == 0))
-        tn = np.sum((y_true == 0) & (y_pred == 0))
-
-        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0  # Recall
-        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
-
-        tpr_list.append(tpr)
-        fpr_list.append(fpr)
-
-    return fpr_list, tpr_list
-
-
-# Plot ROC curve
-def plot_roc_curve(fpr, tpr):
-    plt.plot(fpr, tpr, marker=".")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate (Recall)")
-    plt.title("ROC Curve")
-    plt.show()
-
-
-# Assuming y_scores is generated as the confidence level (0 or 1 in this binary case)
-y_scores = predictions  # For simplicity, let's assume predictions as confidence here
-fpr, tpr = calculate_roc_curve(labels, y_scores)
-plot_roc_curve(fpr, tpr)
-
-
-# PR curve
-def calculate_pr_curve(y_true, y_scores):
-    thresholds = np.linspace(0, 1, num=100)
-    precision_list = []
-    recall_list = []
-
-    for threshold in thresholds:
-        y_pred = (y_scores >= threshold).astype(int)
-
-        tp = np.sum((y_true == 1) & (y_pred == 1))
-        fp = np.sum((y_true == 0) & (y_pred == 1))
-        fn = np.sum((y_true == 1) & (y_pred == 0))
-
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-
-        precision_list.append(precision)
-        recall_list.append(recall)
-
-    return recall_list, precision_list
+        # Plot AUC-PR
+        plt.figure(figsize=(8, 6))
+        plt.plot(recall, precision, color='green', label='Precision-Recall Curve')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('AUC-PR Curve')
+        plt.legend(loc="lower right")
+        plt.grid(True)
+        plt.show()
 
 
-# Plot PR curve
-def plot_pr_curve(recall, precision):
-    plt.plot(recall, precision, marker=".")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-Recall Curve")
-    plt.show()
+data = pd.read_csv("mushroom.csv")
+features = data.drop(columns=["poisonous"])
+labels = data["poisonous"]
 
-
-# Calculate and plot PR curve
-precision, recall = calculate_pr_curve(labels, y_scores)
-plot_pr_curve(recall, precision)
+X_train, X_test, y_train, y_test = train_test_split(
+    features, labels, test_size=0.2, random_state=42
+)
+tree = DecisionTree(max_depth=3)
+tree.train(X_train, y_train)
+tree.evaluate(X_test, y_test)
