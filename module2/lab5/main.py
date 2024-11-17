@@ -9,7 +9,6 @@ class DecisionTree:
     class Node:
         def __init__(self, attribute=None, outcome=None, branches=None):
             self.attribute = attribute
-
             self.outcome = outcome
             self.branches = branches or {}
 
@@ -23,7 +22,7 @@ class DecisionTree:
     def _calculate_entropy(labels):
         label_counts = Counter(labels)
         probabilities = [count / len(labels) for count in label_counts.values()]
-        return -sum(p * np.log2(p) for p in probabilities if p > 0)
+        return -sum(p * np.log2(p) for p in probabilities)
 
     def _info_gain(self, data, labels, attribute):
         initial_entropy = self._calculate_entropy(labels)
@@ -141,13 +140,15 @@ class DecisionTree:
             fpr.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
 
         plt.figure(figsize=(8, 6))
-        plt.plot([0, 1], [0, 1], 'k--', label='Random Classifier', color='gray', linestyle='--')
-        plt.plot(fpr, tpr, color='blue', label='ROC Curve')
+        plt.plot(
+            [0, 1], [0, 1], label="Random Classifier", color="gray", linestyle="--"
+        )
+        plt.plot([1] + fpr + [0], [1] + tpr + [0], color="blue", label="ROC Curve")
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('AUC-ROC Curve')
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("AUC-ROC Curve")
         plt.legend(loc="lower right")
         plt.grid(True)
         plt.show()
@@ -162,15 +163,17 @@ class DecisionTree:
             fn = sum((y_true == 1) & (pred_bin == 0))
             precision.append(tp / (tp + fp) if (tp + fp) > 0 else 0)
             recall.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
+        recall.append(0)
+        precision.append(1)
 
         # Plot AUC-PR
         plt.figure(figsize=(8, 6))
-        plt.plot(recall, precision, color='green', label='Precision-Recall Curve')
+        plt.plot(recall, precision, color="green", label="Precision-Recall Curve")
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
-        plt.xlabel('Recall')
-        plt.ylabel('Precision')
-        plt.title('AUC-PR Curve')
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.title("AUC-PR Curve")
         plt.legend(loc="lower right")
         plt.grid(True)
         plt.show()
@@ -180,9 +183,7 @@ data = pd.read_csv("mushroom.csv")
 features = data.drop(columns=["poisonous"])
 labels = data["poisonous"]
 
-X_train, X_test, y_train, y_test = train_test_split(
-    features, labels, test_size=0.2, random_state=42
-)
-tree = DecisionTree(max_depth=3)
+X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2)
+tree = DecisionTree(max_depth=5)
 tree.train(X_train, y_train)
 tree.evaluate(X_test, y_test)
