@@ -129,15 +129,12 @@ class DecisionTree:
         # AUC-ROC Calculation
         thresholds = np.linspace(0, 1, 101)
         tpr, fpr = [], []
-
-        for thresh in thresholds:
-            pred_bin = (y_pred >= thresh).astype(int)
-            tp = sum((y_true == 1) & (pred_bin == 1))
-            tn = sum((y_true == 0) & (pred_bin == 0))
-            fp = sum((y_true == 0) & (pred_bin == 1))
-            fn = sum((y_true == 1) & (pred_bin == 0))
-            tpr.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
-            fpr.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
+        tp = sum((y_true == 1) & (y_pred == 1))
+        tn = sum((y_true == 0) & (y_pred == 0))
+        fp = sum((y_true == 0) & (y_pred == 1))
+        fn = sum((y_true == 1) & (y_pred == 0))
+        tpr.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
+        fpr.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
 
         plt.figure(figsize=(8, 6))
         plt.plot(
@@ -155,7 +152,6 @@ class DecisionTree:
 
         # AUC-PR Calculation
         precision, recall = [], []
-
         for thresh in thresholds:
             pred_bin = (y_pred >= thresh).astype(int)
             tp = sum((y_true == 1) & (pred_bin == 1))
