@@ -175,7 +175,7 @@ class DecisionTree:
         plt.show()
 
 
-data = pd.read_csv("mushroom.csv")
+data = pd.read_csv("./module2/lab5/mushroom.csv")
 features = data.drop(columns=["poisonous"])
 labels = data["poisonous"]
 
